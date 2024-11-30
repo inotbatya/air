@@ -1,14 +1,42 @@
-import requests
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
 
-API_KEY = "93be52922464c8b6d8dc69c14553ab05"
-city = "Barnaul"
-url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={API_KEY}&units=metric"
+# Загружаем данные из CSV
+df = pd.read_csv('air_quality_data.csv')
 
-response = requests.get(url)
-if response.status_code == 200:
-    data = response.json()
-    print("Город:", data["name"])
-    print("Температура:", data["main"]["temp"], "°C")
-    print("Качество воздуха:", data.get("aqi", "нет данных"))
-else:
-    print("Ошибка:", response.status_code)
+# Убираем строки с пропущенными значениями
+df = df.dropna()
+
+# Выбираем признаки (X) и целевую переменную (y)
+X = df[['PM2.5', 'PM10', 'temperature', 'humidity', 'wind_speed']]
+y = df['AQI']
+
+# Нормализуем данные
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Разделяем данные на обучающую и тестовую выборки
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+
+# Создаем модель нейронной сети
+model = Sequential()
+model.add(Dense(64, input_dim=X_train.shape[1], activation='relu'))
+model.add(Dense(32, activation='relu'))
+model.add(Dense(1, activation='linear'))  # линейная активация для регрессии
+
+# Компилируем модель
+model.compile(loss='mean_squared_error', optimizer='adam')
+
+# Обучаем модель
+model.fit(X_train, y_train, epochs=100, batch_size=10, validation_split=0.2)
+
+# Оценка модели
+loss = model.evaluate(X_test, y_test)
+print(f"Тестовая ошибка: {loss}")
+
+# Прогнозирование
+predictions = model.predict(X_test)
+print(predictions)
