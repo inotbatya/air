@@ -20,9 +20,9 @@ def get_air_quality():
         'AQI': data['list'][0]['main']['aqi'],
         'PM2.5': data['list'][0]['components']['pm2_5'],
         'PM10': data['list'][0]['components']['pm10'],
-        'temperature': data['main']['temp'],  # Температура
-        'humidity': data['main']['humidity'],  # Влажность
-        'wind_speed': data['wind']['speed']  # Скорость ветра
+        'temperature': data['list'][0]['components']['temp'],  # Температура
+        'humidity': data['list'][0]['components']['humidity'],  # Влажность
+        'wind_speed': data['list'][0]['components']['speed']  # Скорость ветра
     }
 
 # Функция для сохранения данных в CSV
