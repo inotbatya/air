@@ -63,7 +63,7 @@ df = pd.read_csv(csv_file)
 df = df.dropna()
 
 # Выбираем признаки (X) и целевую переменную (y)
-X = df[['co', 'no', 'no2', 'o3', 'so2', 'pm2_5', 'pm10', 'nh3']]
+X = df[['PM2.5', 'PM10', 'temperature', 'humidity', 'wind_speed']]
 y = df['pm2_5']
 
 # Нормализуем данные
