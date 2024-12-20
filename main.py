@@ -5,6 +5,8 @@ import os
 
 # Ваш API ключ для OpenWeatherMap
 API_KEY = '93be52922464c8b6d8dc69c14553ab05'
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
 
 # Координаты для города Barnaul
 lat = 53.354
@@ -64,6 +66,7 @@ df = df.dropna()
 
 # Выбираем признаки (X) и целевую переменную (y)
 X = df[['PM2.5', 'PM10', 'temperature', 'humidity', 'wind_speed']]
+    
 y = df['pm2_5']
 
 # Нормализуем данные
