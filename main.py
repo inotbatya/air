@@ -57,7 +57,7 @@ if not os.path.exists(csv_file) or os.stat(csv_file).st_size == 0:
     exit()
 
 # Загружаем данные из CSV
-df = pd.read_csv(csv_file)
+df = pd.read_csv(csv_file, names=column_names))
 
 # Убираем строки с пропущенными значениями
 df = df.dropna()
