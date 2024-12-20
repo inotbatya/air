@@ -5,7 +5,7 @@ import os
 
 # Ваш API ключ для OpenWeatherMap
 API_KEY = '93be52922464c8b6d8dc69c14553ab05'
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
 
 
 # Координаты для города Barnaul
@@ -51,6 +51,9 @@ from sklearn.preprocessing import StandardScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 import os
+
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+column_names = ["timestamp", "PM2.5", "PM10", "temperature", "humidity", "wind_speed", "column7", "column8", "column9"]
 
 # Проверяем, существует ли файл и не пустой ли он
 csv_file = 'air_quality_data.csv'
