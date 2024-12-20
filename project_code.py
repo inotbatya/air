@@ -1,42 +1,45 @@
-# main.py
+import requests
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
+from datetime import datetime
 import os
 
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+# Ваш API ключ для OpenWeatherMap
+API_KEY = '93be52922464c8b6d8dc69c14553ab05'
 
-csv_file = 'air_quality_data.csv'
-if not os.path.exists(csv_file) or os.stat(csv_file).st_size == 0:
-    print("Файл air_quality_data.csv отсутствует или пуст. Проверьте скрипт update.py.")
-    exit()
+# Координаты для города Barnaul
+lat = 53.354
+lon = 83.763
 
-df = pd.read_csv(csv_file, header=0)
-df = df.dropna()
+# Функция для получения данных о качестве воздуха
+def get_air_quality():
+    url = f'http://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={API_KEY}'
+    response = requests.get(url)
+    data = response.json()
+    return {
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'co': data['list'][0]['components']['co'],
+        'no': data['list'][0]['components']['no'],
+        'no2': data['list'][0]['components']['no2'],
+        'o3': data['list'][0]['components']['o3'],
+        'so2': data['list'][0]['components']['so2'],
+        'pm2_5': data['list'][0]['components']['pm2_5'],
+        'pm10': data['list'][0]['components']['pm10'],
+        'nh3': data['list'][0]['components']['nh3']
+    }
 
-# Проверяем типы данных и преобразуем столбцы к числовым, если это необходимо
-numeric_columns = ['co', 'no', 'no2', 'o3', 'so2', 'PM2.5', 'PM10', 'nh3']
-df[numeric_columns] = df[numeric_columns].apply(pd.to_numeric, errors='coerce')
+# Функция для сбора данных и сохранения их в CSV
+def collect_data():
+    air_quality_data = get_air_quality()
+    df = pd.DataFrame([air_quality_data])
 
-# Убираем строки с пропущенными значениями после преобразования типов
-df = df.dropna()
+    # Проверяем, существует ли файл, чтобы дописать данные
+    file_name = 'air_quality_data.csv'
+    if os.path.exists(file_name):
+        # Указываем соответствие заголовков
+        df.to_csv(file_name, mode='a', index=False, header=False)
+    else:
+        df.to_csv(file_name, index=False)
 
-X = df[['PM2.5', 'PM10', 'temperature', 'humidity', 'wind_speed']]
-y = df['PM2.5']
-
-scaler = StandardScaler()
-X = scaler.fit_transform(X)
-
-model = Sequential([
-    Dense(64, activation='relu', input_shape=(X.shape[1],)),
-    Dense(32, activation='relu'),
-    Dense(1, activation='linear')
-])
-
-model.compile(optimizer='adam', loss='mse')
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-model.fit(X_train, y_train, epochs=10, batch_size=32, validation_data=(X_test, y_test))
-
-print("Модель успешно обучена!")
+if __name__ == "__main__":
+    while True:
+        collect_data()
