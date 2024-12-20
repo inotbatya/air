@@ -38,6 +38,11 @@ def get_air_quality():
 # Функция для сбора данных и сохранения их в CSV
 def collect_data():
     air_quality_data = get_air_quality()
+    # Сохраняем модель
+    model.save('air_quality_model.h5')
+    # Сохраняем масштабировщик
+    from joblib import dump
+    dump(scaler, 'scaler.pkl')
     if air_quality_data is None:
         print("Не удалось получить данные. Пропуск итерации.")
         return
