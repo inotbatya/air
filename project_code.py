@@ -1,3 +1,4 @@
+# main.py
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -6,14 +7,20 @@ from tensorflow.keras.layers import Dense
 import os
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-column_names = ["timestamp", "PM2.5", "PM10", "temperature", "humidity", "wind_speed", "column7", "column8", "column9"]
 
 csv_file = 'air_quality_data.csv'
 if not os.path.exists(csv_file) or os.stat(csv_file).st_size == 0:
     print("Файл air_quality_data.csv отсутствует или пуст. Проверьте скрипт update.py.")
     exit()
 
-df = pd.read_csv(csv_file, names=column_names)
+df = pd.read_csv(csv_file, header=0)
+df = df.dropna()
+
+# Проверяем типы данных и преобразуем столбцы к числовым, если это необходимо
+numeric_columns = ['co', 'no', 'no2', 'o3', 'so2', 'PM2.5', 'PM10', 'nh3']
+df[numeric_columns] = df[numeric_columns].apply(pd.to_numeric, errors='coerce')
+
+# Убираем строки с пропущенными значениями после преобразования типов
 df = df.dropna()
 
 X = df[['PM2.5', 'PM10', 'temperature', 'humidity', 'wind_speed']]
