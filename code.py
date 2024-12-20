@@ -11,8 +11,10 @@ if __name__ == "__main__":
   
   os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
   
+  column_names = ["timestamp", "PM2.5", "PM10", "temperature", "humidity", "wind_speed", "column7", "column8", "column9"]
+
   # Загружаем данные из CSV
-  df = pd.read_csv('air_quality_data.csv')
+  df = pd.read_csv('air_quality_data.csv', names=column_names)
   
   # Убираем строки с пропущенными значениями
   df = df.dropna()
