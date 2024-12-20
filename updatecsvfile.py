@@ -1,66 +1,54 @@
-import requests
 import pandas as pd
-from datetime import datetime
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
 import os
-import time
+from joblib import dump
 
-# Ваш API ключ для OpenWeatherMap
-API_KEY = '93be52922464c8b6d8dc69c14553ab05'
+# Проверяем файл данных
+csv_file = 'air_quality_data.csv'
+if not os.path.exists(csv_file) or os.stat(csv_file).st_size == 0:
+    print("Файл air_quality_data.csv отсутствует или пуст. Проверьте сбор данных.")
+    exit()
 
-# Координаты для города Barnaul
-lat = 53.354
-lon = 83.763
+# Загрузка данных
+column_names = ["timestamp", "co", "no", "no2", "o3", "so2", "pm2_5", "pm10", "nh3"]
+try:
+    df = pd.read_csv(csv_file, names=column_names, header=0)  # Пропускаем заголовки
+except Exception as e:
+    print(f"Ошибка при загрузке данных: {e}")
+    exit()
 
-# Функция для получения данных о качестве воздуха
-def get_air_quality():
-    try:
-        url = f'http://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={API_KEY}'
-        response = requests.get(url)
-        response.raise_for_status()  # Проверяет наличие ошибок HTTP
-        data = response.json()
+# Убираем строки с пропущенными значениями
+df = df.dropna()
 
-        # Формируем структуру данных
-        return {
-            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'co': data['list'][0]['components']['co'],
-            'no': data['list'][0]['components']['no'],
-            'no2': data['list'][0]['components']['no2'],
-            'o3': data['list'][0]['components']['o3'],
-            'so2': data['list'][0]['components']['so2'],
-            'pm2_5': data['list'][0]['components']['pm2_5'],
-            'pm10': data['list'][0]['components']['pm10'],
-            'nh3': data['list'][0]['components']['nh3']
-        }
-    except Exception as e:
-        print(f"Ошибка при получении данных: {e}")
-        return None
+# Разделяем признаки (X) и целевую переменную (y)
+X = df[["co", "no", "no2", "o3", "so2", "pm10", "nh3"]]
+y = df["pm2_5"]
 
-# Функция для сбора данных и сохранения их в CSV
-def collect_data():
-    air_quality_data = get_air_quality()
-    # Сохраняем модель
-    model.save('air_quality_model.h5')
-    # Сохраняем масштабировщик
-    from joblib import dump
-    dump(scaler, 'scaler.pkl')
-    if air_quality_data is None:
-        print("Не удалось получить данные. Пропуск итерации.")
-        return
+# Нормализация данных
+scaler = StandardScaler()
+X = scaler.fit_transform(X)
 
-    df = pd.DataFrame([air_quality_data])
+# Создаем модель
+model = Sequential([
+    Dense(64, activation='relu', input_shape=(X.shape[1],)),
+    Dense(32, activation='relu'),
+    Dense(1, activation='linear')
+])
 
-    # Проверяем, существует ли файл, чтобы дописать данные
-    file_name = 'air_quality_data.csv'
-    if os.path.exists(file_name):
-        df.to_csv(file_name, mode='a', index=False, header=False)
-    else:
-        df.to_csv(file_name, index=False)
+model.compile(optimizer='adam', loss='mse')
 
-    print(f"Данные успешно добавлены: {air_quality_data}")
+# Разбиваем данные на обучающую и тестовую выборки
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-if __name__ == "__main__":
-    while True:
-        print("Сбор данных начат...")
-        collect_data()
-        print("Ожидание перед следующим запросом...")
-        time.sleep(600)  # Запрашивает данные каждые 10 минут
+# Обучаем модель
+model.fit(X_train, y_train, epochs=10, batch_size=32, validation_data=(X_test, y_test))
+
+# Сохраняем модель и масштабировщик
+model.save('air_quality_model.h5')
+print("Модель успешно сохранена в 'air_quality_model.h5'.")
+
+dump(scaler, 'scaler.pkl')
+print("Масштабировщик сохранён в 'scaler.pkl'.")
