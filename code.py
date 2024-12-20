@@ -4,6 +4,11 @@ from sklearn.preprocessing import StandardScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from tensorflow import keras
+import os
+import keras
+
+
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 # Загружаем данные из CSV
 df = pd.read_csv('air_quality_data.csv')
