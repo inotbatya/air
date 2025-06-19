@@ -15,7 +15,7 @@ CORS(app)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-API_KEY = '93be52922464c8b6d8dc69c14553ab05'
+API_KEY = 'API_KEY'
 lat, lon = 53.354, 83.763  # Томск, Россия
 MODEL_PATH = 'air_quality_model.h5'
 SCALER_PATH = 'air_quality_scaler.pkl'
