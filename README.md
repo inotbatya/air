@@ -32,5 +32,5 @@
    ```
 2. Запуск
    ```bash
-   python main
+   python main.py
    ```
