@@ -12,7 +12,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger()
 
-API_KEY = '93be52922464c8b6d8dc69c14553ab05'
+API_KEY = 'API_KEY'
 
 # Города с координатами
 cities = [
