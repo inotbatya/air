@@ -1,115 +1,169 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 import requests
 import pandas as pd
-from datetime import datetime
+import numpy as np
+import joblib
 import os
-import time
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
-from joblib import dump
+from tensorflow.keras.models import load_model
+import logging
 
-# Ваш API ключ для OpenWeatherMap
+app = Flask(__name__)
+CORS(app)
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 API_KEY = '93be52922464c8b6d8dc69c14553ab05'
+lat, lon = 53.354, 83.763  # Томск, Россия
+MODEL_PATH = 'air_quality_model.h5'
+SCALER_PATH = 'air_quality_scaler.pkl'
 
-# Координаты для города Barnaul
-lat = 53.354
-lon = 83.763
+# Проверка наличия файлов модели и скалера
+if not os.path.exists(MODEL_PATH):
+    logger.error(f"Модель не найдена по пути: {MODEL_PATH}")
+    raise FileNotFoundError(f"Модель не найдена по пути: {MODEL_PATH}")
 
-# Файл для хранения данных
-csv_file = 'air_quality_data.csv'
+if not os.path.exists(SCALER_PATH):
+    logger.error(f"Скалер не найден по пути: {SCALER_PATH}")
+    raise FileNotFoundError(f"Скалер не найден по пути: {SCALER_PATH}")
 
-# Функция для получения данных о качестве воздуха
-def get_air_quality():
+# Загрузка модели с метриками
+try:
+    model = load_model(MODEL_PATH, compile=False)
+    # Если модель требует компиляции, добавьте нужные метрики/оптимизатор
+    model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+    logger.info("✅ Модель загружена и скомпилирована")
+except Exception as e:
+    logger.error(f"Ошибка загрузки модели: {e}")
+    raise
+
+try:
+    scaler = joblib.load(SCALER_PATH)
+    logger.info("✅ Скалер загружен")
+except Exception as e:
+    logger.error(f"Ошибка загрузки скалера: {e}")
+    raise
+
+# Ожидаемые признаки для предсказания (без PM2.5, т.к. это целевая переменная)
+EXPECTED_FEATURES = ['co', 'no', 'no2', 'o3', 'so2', 'pm10', 'nh3']
+
+@app.route('/api/fetch_air_quality', methods=['GET'])
+def fetch_air_quality():
+    url = f'https://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={API_KEY}'
     try:
-        url = f'http://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={API_KEY}'
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-        return {
-            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'co': data['list'][0]['components']['co'],
-            'no': data['list'][0]['components']['no'],
-            'no2': data['list'][0]['components']['no2'],
-            'o3': data['list'][0]['components']['o3'],
-            'so2': data['list'][0]['components']['so2'],
-            'pm2_5': data['list'][0]['components']['pm2_5'],
-            'pm10': data['list'][0]['components']['pm10'],
-            'nh3': data['list'][0]['components']['nh3'],
-        }
-    except Exception as e:
-        print(f"Ошибка при получении данных: {e}")
-        return None
-
-# Функция для записи данных в CSV
-def update_csv(data):
-    df = pd.DataFrame([data])
-    if os.path.exists(csv_file):
-        df.to_csv(csv_file, mode='a', index=False, header=False)
-    else:
-        df.to_csv(csv_file, index=False)
-    print(f"Данные успешно добавлены: {data}")
-
-# Функция для обучения и сохранения модели
-def train_and_save_model():
-    # Проверяем файл данных
-    if not os.path.exists(csv_file) or os.stat(csv_file).st_size == 0:
-        print("Файл air_quality_data.csv отсутствует или пуст. Пропуск обучения.")
-        return
-
-    # Загрузка данных
-    column_names = ["timestamp", "co", "no", "no2", "o3", "so2", "pm2_5", "pm10", "nh3"]
-    try:
-        df = pd.read_csv(csv_file, names=column_names, header=0)  # Пропускаем заголовки
-    except Exception as e:
-        print(f"Ошибка при загрузке данных: {e}")
-        return
-
-    # Убираем строки с пропущенными значениями
-    df = df.dropna()
-
-    # Разделяем признаки (X) и целевую переменную (y)
-    X = df[["co", "no", "no2", "o3", "so2", "pm10", "nh3"]]
-    y = df["pm2_5"]
-
-    # Нормализация данных
-    scaler = StandardScaler()
-    X = scaler.fit_transform(X)
-
-    # Создаём модель
-    model = Sequential([
-        Dense(64, activation='relu', input_shape=(X.shape[1],)),
-        Dense(32, activation='relu'),
-        Dense(1, activation='linear')
-    ])
-
-    model.compile(optimizer='adam', loss='mse')
-
-    # Разбиваем данные на обучающую и тестовую выборки
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-    # Обучаем модель
-    model.fit(X_train, y_train, epochs=10, batch_size=32, validation_data=(X_test, y_test))
-
-    # Сохраняем модель и масштабировщик
-    model.save('air_quality_model.keras')
-    dump(scaler, 'scaler.pkl')
-
-    print("Модель успешно обучена и сохранена!")
-    print("Файлы: 'air_quality_model.keras' и 'scaler.pkl'.")
-
-if __name__ == "__main__":
-    print("Запуск автономного процесса...")
-    while True:
-        print("\n--- Обновление данных ---")
-        air_quality_data = get_air_quality()
-        if air_quality_data:
-            update_csv(air_quality_data)
-        else:
-            print("Не удалось получить данные. Пропуск...")
+        response = requests.get(url, timeout=10).json()
         
-        print("\n--- Обучение модели ---")
-        train_and_save_model()
+        if 'list' not in response or not response['list']:
+            logger.error("Нет данных в ответе API")
+            return jsonify({"error": "Нет данных в ответе API"}), 502
 
-        print("\nОжидание перед следующим обновлением...")
-        time.sleep(3600)  # Повторение каждые 60 минут
+        components = response['list'][0]['components']
+        main = response['list'][0]['main']
+
+        # Проверка наличия всех необходимых компонентов 
+        missing_components = [comp for comp in EXPECTED_FEATURES + ['pm2_5'] if comp not in components]
+        if missing_components:
+            logger.warning(f"Отсутствуют компоненты в ответе API: {missing_components}")
+
+        data_to_save = pd.DataFrame([{
+            'co': components.get('co', np.nan),
+            'no': components.get('no', np.nan),
+            'no2': components.get('no2', np.nan),
+            'o3': components.get('o3', np.nan),
+            'so2': components.get('so2', np.nan),
+            'pm2_5': components.get('pm2_5', np.nan),
+            'pm10': components.get('pm10', np.nan),
+            'nh3': components.get('nh3', np.nan),
+            'aqi': main.get('aqi', np.nan)
+        }])
+
+        # Сохранение данных с проверкой
+        try:
+            file_exists = os.path.isfile('air_quality_data.csv')
+            data_to_save.to_csv('air_quality_data.csv', mode='a', header=not file_exists, index=False)
+            logger.info("Данные успешно сохранены")
+        except Exception as e:
+            logger.error(f"Ошибка сохранения данных: {e}")
+
+        return jsonify(response)
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ошибка запроса к API: {e}")
+        return jsonify({"error": "Ошибка запроса к API", "details": str(e)}), 503
+    except Exception as e:
+        logger.error(f"Неожиданная ошибка: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/predict_quality', methods=['POST'])
+def predict_quality():
+    try:
+        data = request.get_json(force=True)
+        
+        if 'components' not in data:
+            return jsonify({"error": "Отсутствует ключ 'components' в JSON"}), 400
+            
+        features = data['components']
+        
+        # Проверка наличия всех требуемых признаков
+        missing_features = [feat for feat in EXPECTED_FEATURES if feat not in features]
+        if missing_features:
+            return jsonify({"error": f"Отсутствуют признаки: {missing_features}"}), 400
+
+        # Проверка валидности значений
+        try:
+            input_values = [float(features[feat]) for feat in EXPECTED_FEATURES]
+        except ValueError as e:
+            return jsonify({"error": "Все значения должны быть числами", "details": str(e)}), 400
+
+        input_features = np.array(input_values).reshape(1, -1)
+        
+        # Проверка соответствия размерности скейлера
+        if input_features.shape[1] != scaler.n_features_in_:
+            logger.warning(f"Размерность входных данных не соответствует ожидаемой: {scaler.n_features_in_}")
+            
+        scaled_features = scaler.transform(input_features)
+        
+        # Предсказание с обработкой возможных ошибок
+        try:
+            prediction = model.predict(scaled_features, verbose=0)[0][0]
+        except Exception as e:
+            logger.error(f"Ошибка предсказания модели: {e}")
+            return jsonify({"error": "Ошибка предсказания модели", "details": str(e)}), 500
+
+        return jsonify({
+            "predicted_pm2_5": round(float(prediction), 2),
+            "model_input": {f: float(v) for f, v in zip(EXPECTED_FEATURES, input_values)},
+            "model_info": {
+                "input_shape": model.input_shape,
+                "output_shape": model.output_shape
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Ошибка в обработке запроса: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# Добавленный эндпоинт для проверки модели
+@app.route('/api/check_model', methods=['GET'])
+def check_model():
+    """Проверка состояния модели и скалера"""
+    try:
+        # Пример тестового ввода
+        test_input = np.random.rand(1, len(EXPECTED_FEATURES))
+        scaled_test = scaler.transform(test_input)
+        prediction = model.predict(scaled_test, verbose=0)
+        
+        return jsonify({
+            "status": "ok",
+            "model_summary": str(model.to_json()),
+            "scaler_features": scaler.n_features_in_,
+            "test_prediction": float(prediction[0][0]),
+            "input_example": {f: float(v) for f, v in zip(EXPECTED_FEATURES, test_input[0])}
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "details": str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
